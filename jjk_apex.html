@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JJK: The Honored One - Final Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; }
+        #ui { position: absolute; top: 5%; width: 100%; text-align: center; color: #fff; pointer-events: none; z-index: 10; }
+        h1 { font-size: 2.8rem; margin: 0; letter-spacing: 15px; font-weight: 900; text-transform: uppercase; }
+        #tech-name { font-size: 1.5rem; color: #00ffff; margin-top: 10px; font-weight: bold; letter-spacing: 5px; min-height: 1.6em; }
+        #video-container { position: absolute; bottom: 20px; left: 20px; transform: scaleX(-1); width: 260px; height: 195px; border: 2px solid rgba(255,255,255,0.2); z-index: 20; border-radius: 15px; overflow: hidden; }
+        video { width: 100%; height: 100%; object-fit: cover; opacity: 0.35; }
+        #start-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 25px 60px; font-size: 1.8rem; background: #fff; color: #000; border: none; cursor: pointer; z-index: 100; font-weight: 900; border-radius: 8px; box-shadow: 0 0 50px rgba(255,255,255,0.6); }
+        .black-flash { color: #ff0044 !important; text-shadow: 0 0 25px #ff0044; animation: vibrate 0.1s infinite; }
+        @keyframes vibrate { 0% { transform: translate(0); } 25% { transform: translate(2px, -2px); } 50% { transform: translate(-2px, 2px); } 75% { transform: translate(2px, 2px); } 100% { transform: translate(0); } }
+    </style>
+    <script type="importmap"> { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } } </script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <button id="start-btn">EXPAND DOMAIN</button>
+    <div id="ui">
+        <h1>GOJO SATORU</h1>
+        <div id="tech-name">STABILIZING CURSED ENERGY...</div>
+    </div>
+    <div id="video-container"><video class="input_video" playsinline></video></div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 70;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.6, 0.4, 0.85);
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(bloom);
+
+    const COUNT = 20000;
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(COUNT * 3), col = new Float32Array(COUNT * 3), siz = new Float32Array(COUNT);
+    const tPos = new Float32Array(COUNT * 3), tCol = new Float32Array(COUNT * 3), tSiz = new Float32Array(COUNT);
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setAttribute('size', new THREE.BufferAttribute(siz, 1));
+    const particles = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.5, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true }));
+    scene.add(particles);
+
+    let curTech = 'none', exploding = false, isPurple = false, isBlackFlash = false, chargeTimer = 0;
+    const nameEl = document.getElementById('tech-name');
+
+    const hands = new Hands({locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+    hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.8, minTrackingConfidence: 0.8 });
+
+    hands.onResults((res) => {
+        if (exploding) return;
+        let activeHands = [];
+        if (res.multiHandLandmarks) {
+            res.multiHandLandmarks.forEach((lm, i) => {
+                const indexUp = lm[8].y < lm[6].y;
+                const midUp = lm[12].y < lm[10].y;
+                const ringDown = lm[16].y > lm[14].y;
+                const pinkyDown = lm[20].y > lm[18].y;
+                
+                let gesture = 'neutral';
+                if (lm[12].x < lm[8].x && indexUp && midUp) gesture = 'void';
+                else if (indexUp && midUp && ringDown && pinkyDown) gesture = 'red';
+                else if (indexUp && !midUp && ringDown && pinkyDown) gesture = 'blue';
+
+                activeHands.push({ x: (0.5 - lm[9].x)*115, y: (0.5 - lm[9].y)*110, gesture });
+            });
+        }
+
+        if (activeHands.length === 2) {
+            const d = Math.hypot(activeHands[0].x - activeHands[1].x, activeHands[0].y - activeHands[1].y);
+            const hasBlue = activeHands.some(h => h.gesture === 'blue');
+            const hasRed = activeHands.some(h => h.gesture === 'red');
+
+            if (d < 22 && hasBlue && hasRed) {
+                isPurple = true; chargeTimer++;
+                if (chargeTimer > 45) isBlackFlash = true;
+                updatePurple((activeHands[0].x + activeHands[1].x)/2, (activeHands[0].y + activeHands[1].y)/2);
+            } else { resetStates(); updateSigns(activeHands); }
+        } else {
+            if (activeHands.length === 0 && (isPurple || isBlackFlash)) triggerExplosion();
+            resetStates();
+            updateSigns(activeHands);
+        }
+    });
+
+    function resetStates() { isPurple = false; isBlackFlash = false; chargeTimer = 0; nameEl.classList.remove('black-flash'); }
+
+    function updateSigns(hData) {
+        let anyActive = false;
+        for(let i=0; i<COUNT; i++) {
+            const h = hData[i % (hData.length || 1)] || {x:0, y:0, gesture:'none'};
+            const r = Math.random()*11, a = Math.random()*6.28;
+            tPos[i*3] = h.x + r*Math.cos(a); tPos[i*3+1] = h.y + r*Math.sin(a); tPos[i*3+2] = (Math.random()-0.5)*12;
+            
+            if (h.gesture === 'blue') { tCol[i*3]=0; tCol[i*3+1]=0.5; tCol[i*3+2]=1; anyActive=true; nameEl.innerText="LAPSE: BLUE"; }
+            else if (h.gesture === 'red') { tCol[i*3]=1; tCol[i*3+1]=0.1; tCol[i*3+2]=0; anyActive=true; nameEl.innerText="REVERSAL: RED"; }
+            else if (h.gesture === 'void') { tCol[i*3]=1; tCol[i*3+1]=1; tCol[i*3+2]=1; anyActive=true; nameEl.innerText="DOMAIN EXPANSION: INFINITE VOID"; }
+            else { tCol[i*3]=0.1; tCol[i*3+1]=0.2; tCol[i*3+2]=0.4; tSiz[i]=0.4; }
+            tSiz[i] = anyActive ? 1.6 : 0.4;
+        }
+        if(!anyActive) nameEl.innerText = "";
+    }
+
+    function updatePurple(cx, cy) {
+        nameEl.innerText = isBlackFlash ? "BLACK FLASH" : "HOLLOW PURPLE";
+        if(isBlackFlash) nameEl.classList.add('black-flash');
+        for(let i=0; i<COUNT; i++) {
+            const rad = isBlackFlash ? 32 : 22, a = Math.random()*6.28, p = Math.acos(2*Math.random()-1);
+            tPos[i*3] = cx + rad*Math.sin(p)*Math.cos(a); tPos[i*3+1] = cy + rad*Math.sin(p)*Math.sin(a); tPos[i*3+2] = rad*Math.cos(p);
+            if (isBlackFlash && i % 35 === 0) {
+                tPos[i*3] += (Math.random()-0.5)*70; tPos[i*3+1] += (Math.random()-0.5)*70;
+                tCol[i*3]=1; tCol[i*3+1]=0; tCol[i*3+2]=0.2; tSiz[i]=7;
+            } else { tCol[i*3]=0.7; tCol[i*3+1]=0; tCol[i*3+2]=1; tSiz[i]=2.2; }
+        }
+    }
+
+    function triggerExplosion() {
+        exploding = true; bloom.strength = 22;
+        for(let i=0; i<COUNT; i++) {
+            const d = 450 + Math.random()*250, a = Math.random()*6.28;
+            tPos[i*3]=Math.cos(a)*d; tPos[i*3+1]=Math.sin(a)*d; tPos[i*3+2]=(Math.random()-0.5)*120;
+        }
+        setTimeout(() => { exploding = false; bloom.strength = 1.6; }, 1200);
+    }
+
+    document.getElementById('start-btn').addEventListener('click', (e) => {
+        e.target.style.display = 'none';
+        new Camera(document.querySelector('.input_video'), {
+            onFrame: async () => { await hands.send({image: document.querySelector('.input_video')}); },
+            width: 640, height: 480
+        }).start();
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const p = geo.attributes;
+        const lerp = exploding ? 0.04 : 0.25;
+        for(let i=0; i<COUNT*3; i++) {
+            p.position.array[i] += (tPos[i] - p.position.array[i]) * lerp;
+            p.color.array[i] += (tCol[i] - p.color.array[i]) * lerp;
+        }
+        p.position.needsUpdate = p.color.needsUpdate = true;
+        if(isPurple) particles.rotation.z += (isBlackFlash ? 0.7 : 0.4);
+        composer.render();
+    }
+    animate();
+</script>
+</body>
+</html>
